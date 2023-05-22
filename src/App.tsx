@@ -1,35 +1,181 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { Graph, GraphData, GraphLink, GraphNode } from 'react-d3-graph';
+
+import movies from './data/index.json';
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+interface Movie {
+  Starring: string[];
+  Title: string;
+}
+
+const searchMoviesByTitle = (title: string, pageSize: number, pageNumber: number): any[] => {
+  const matchingMovies = movies.filter(movie => {
+    if (!('Starring' in movie) || !Array.isArray(movie?.Starring) ||  movie?.Starring.length === 0) {
+      return false;
+    }
+    return movie.Title.toLowerCase().includes(title.toLowerCase());
+  });
+  const startIndex = (pageNumber - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const slicedMovies = matchingMovies.slice(startIndex, endIndex);
+  return slicedMovies;
+}
+
+const typesLinks = [
+  { type: 'STRAIGHT', color: '#DB0160', strokeLinecap: "butt" },
+  { type: 'CURVE_SMOOTH', color: '#AA0BDB', strokeLinecap: "butt" },
+  { type: 'CURVE_FULL', color: '#DB2D0B', strokeLinecap: "butt" },
+  { type: 'STRAIGHT', color: '#16DB8D', strokeLinecap: "round" },
+  { type: 'CURVE_SMOOTH', color: '#96DB16', strokeLinecap: "round" },
+  { type: 'CURVE_FULL', color: '#FF8CBD', strokeLinecap: "round" },
+  { type: 'STRAIGHT', color: '#FFF599', strokeLinecap: "square" },
+  { type: 'CURVE_SMOOTH', color: '#66FF6C', strokeLinecap: "square" },
+];
+
+export const App = () => {
+
+  const [search, setSearch] = useState<Movie[]>([] as Movie[]);
+  const [value, setValue] = useState('');
+  const [nodeSelected, setNodeSelected] = useState('');
+  const [config, setConfig] = useState({} as any);
+  const wrapperGraph = useRef<HTMLElement | null>(null);
+
+  const [graph, setGraph] = useState<GraphData<GraphNode, GraphLink>>({} as GraphData<GraphNode, GraphLink>);
+  const [edges, setEdges] = useState<Movie[]>([] as Movie[]);
+
+  useEffect(() => {
+    const data = searchMoviesByTitle(value, 9, 1);
+    setSearch(data);
+  }, [value]);
+
+  const addMovie = useCallback((movie: Movie) => {
+    setEdges([...edges, movie].filter(({ Title }, index, edges) => edges.findIndex(({ Title: title }) => Title === title) === index).slice(0, 8));
+  }, [edges, edges.length]);
+
+
+
+
+  useEffect(() => {
+    // nodes are the Starring
+    // links are the Title
+    const nodes = [...(new Set(edges.reduce((acc, { Starring }) => ([...acc, ...Starring]), [] as string[]))).values()]
+      .map((node) => ({ id: node, }));
+
+    // create a pair order between Starring in a movie 
+    // @ts-ignore
+    const links = edges.reduce((acc, { Starring, Title }, indexTitle) => {
+      // @ts-ignore
+
+      const pairs = Starring.reduce((acc, starring, key) => {
+        if (key === 0) {
+          return acc;
+        }
+
+        // @ts-ignore
+        const pair = Starring.reduce((acc, pair, index) => {
+          if (index === key) {
+            return acc;
+          }
+          return [...acc, { source: starring, target: pair, label: Title, highlightColor: 'lightblue', ...typesLinks[indexTitle] }];
+        }, [] as Record<string, string>[]);
+
+
+        return [...acc, ...pair];
+      }, [] as Record<string, string>[]);
+
+      return [...acc, ...pairs];
+    }, [] as Record<string, string>[]);
+
+    const graph = {
+      nodes,
+      links,
+    } as unknown as GraphData<GraphNode, GraphLink>;
+    setGraph(graph);
+  }, [edges, edges.length]);
+
+  // @ts-ignore
+  const onClickGraph = useCallback((node: string) => {
+    setNodeSelected(node);
+  }, []);
+
+
+  useEffect(() => {
+    setConfig({
+      nodeHighlightBehavior: true,
+      height: wrapperGraph?.current?.clientHeight ?? 0,
+      width: wrapperGraph?.current?.clientWidth ?? 0,
+      node: {
+        color: 'lightgreen',
+        size: 200,
+        highlightStrokeColor: 'blue'
+      },
+      link: {
+        highlightColor: 'lightblue',
+        renderLabel: true,
+        labelProperty({ source, target, label }: { source: string, target: string, label: string }) {
+          if ([source, target].includes(nodeSelected)) {
+            return label;
+          }
+        }
+      },
+      d3: {
+        gravity: -1500
+      }
+    });
+  }, [wrapperGraph.current, nodeSelected]);
+
+
+
 
   return (
     <>
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <main>
+
+        <header className='border-wrapper' >
+          <div className="border"></div>
+          <h1>Disney Connections</h1>
+        </header>
+
+        <section className='menu border-wrapper'>
+          <div className="border"></div>
+          <article className='form-item'>
+            <input
+              type="text"
+              className={value.length > 0 ? 'active' : ''}
+              name=""
+              id="search"
+              value={value}
+              onChange={({ target: { value } }) => setValue(value)}
+            />
+            <label htmlFor='search'>Search a movie</label>
+          </article>
+          {search.length && <h2>Select Movies</h2>}
+          <article className='results'>
+            {search.map(({ Title, Starring }, key) => (
+              <button className='border-wrapper' key={key} onClick={() => addMovie({ Title, Starring })}>
+                <div className="border"></div>
+                <span>{Title}</span>
+              </button>
+            ))}
+          </article>
+        </section>
+        <section className='graph  border-wrapper'>
+          <div className="border"></div>
+          <article>
+          </article>
+          <article ref={wrapperGraph} >
+            <Graph
+              id='graph-id' // id is mandatory, if no id is defined rd3g will throw an error
+              data={graph}
+              config={config}
+              onClickNode={onClickGraph}
+            />
+          </article>
+        </section>
+      </main>
     </>
   )
 }
 
-export default App
