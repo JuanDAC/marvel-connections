@@ -135,7 +135,10 @@ export const App = () => {
 
         <header className='border-wrapper' >
           <div className="border"></div>
-          <h1>Disney Connections</h1>
+          <span style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+            <img src="https://www.konradlorenz.edu.co/wp-content/themes/andreco/images/logo-konrad.png" alt="" style={{ height: '1.5rem' }}  />
+            <h1>Disney Connections</h1>
+          </span>
         </header>
 
         <section className='menu border-wrapper'>
