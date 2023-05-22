@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Graph, GraphData, GraphLink, GraphNode } from 'react-d3-graph';
+import { Graph, GraphConfiguration, GraphData, GraphLink, GraphNode, LinkLabelProperty } from 'react-d3-graph';
 
 import movies from './data/index.json';
 import './App.css'
@@ -12,7 +12,7 @@ interface Movie {
 
 const searchMoviesByTitle = (title: string, pageSize: number, pageNumber: number): any[] => {
   const matchingMovies = movies.filter(movie => {
-    if (!('Starring' in movie) || !Array.isArray(movie?.Starring) ||  movie?.Starring.length === 0) {
+    if (!('Starring' in movie) || !Array.isArray(movie?.Starring) || movie?.Starring.length === 0) {
       return false;
     }
     return movie.Title.toLowerCase().includes(title.toLowerCase());
@@ -39,7 +39,7 @@ export const App = () => {
   const [search, setSearch] = useState<Movie[]>([] as Movie[]);
   const [value, setValue] = useState('');
   const [nodeSelected, setNodeSelected] = useState('');
-  const [config, setConfig] = useState({} as any);
+  const [config, setConfig] = useState<Partial<GraphConfiguration<GraphNode, GraphLink>>>({});
   const wrapperGraph = useRef<HTMLElement | null>(null);
 
   const [graph, setGraph] = useState<GraphData<GraphNode, GraphLink>>({} as GraphData<GraphNode, GraphLink>);
@@ -52,6 +52,11 @@ export const App = () => {
 
   const addMovie = useCallback((movie: Movie) => {
     setEdges([...edges, movie].filter(({ Title }, index, edges) => edges.findIndex(({ Title: title }) => Title === title) === index).slice(0, 8));
+  }, [edges, edges.length]);
+
+
+  const removeMovie = useCallback((movie: Movie) => {
+    setEdges(edges.filter(({ Title }) => Title !== movie.Title));
   }, [edges, edges.length]);
 
 
@@ -114,17 +119,19 @@ export const App = () => {
       link: {
         highlightColor: 'lightblue',
         renderLabel: true,
-        labelProperty({ source, target, label }: { source: string, target: string, label: string }) {
+        labelProperty: ((node) => {
+          const { source, target } = node;
           if ([source, target].includes(nodeSelected)) {
-            return label;
+            return (node['label' as keyof GraphLink] ?? '') as string;
           }
-        }
+          return '';
+        }) as LinkLabelProperty<GraphLink>
       },
       d3: {
         gravity: -1500
       }
     });
-  }, [wrapperGraph.current, nodeSelected]);
+  }, [edges, wrapperGraph.current, nodeSelected]);
 
 
 
@@ -135,48 +142,71 @@ export const App = () => {
 
         <header className='border-wrapper' >
           <div className="border"></div>
-          <span style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <img src="https://www.konradlorenz.edu.co/wp-content/themes/andreco/images/logo-konrad.png" alt="" style={{ height: '1.5rem' }}  />
+          <span style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <img src="https://www.konradlorenz.edu.co/wp-content/themes/andreco/images/logo-konrad.png" alt="" style={{ height: '1.5rem' }} />
             <h1>Disney Connections</h1>
           </span>
         </header>
+        <article>
+          <section className='menu border-wrapper'>
+            <div className="border"></div>
+            <article className='form-item'>
+              <input
+                type="text"
+                className={value.length > 0 ? 'active' : ''}
+                name=""
+                id="search"
+                value={value}
+                onChange={({ target: { value } }) => setValue(value)}
+              />
+              <label htmlFor='search'>Search a movie</label>
+            </article>
+            <article className='results'>
+              {search.length && <h2>Add Movies</h2>}
+              {search.map(({ Title, Starring }, key) => (
+                <button
+                  className='border-wrapper'
+                  key={key}
+                  onClick={() => addMovie({ Title, Starring })}
+                >
+                  <div className="border"></div>
+                  <span>{Title}</span>
+                </button>
+              ))}
+            </article>
+          </section>
+          <section className='graph border-wrapper'>
+            <div className="border"></div>
+            <article>
+            </article>
+            <article ref={wrapperGraph} >
+              <Graph
+                id='graph-id' // id is mandatory, if no id is defined rd3g will throw an error
+                data={graph}
+                config={config}
+                onClickNode={onClickGraph}
+              />
+            </article>
+          </section>
+          {
+            edges.length
+            && <section className='nodes border-wrapper' >
+              <div className="border"></div>
+              {
+                edges.map(({ Starring, Title }, key) => (
+                  <button
+                    key={key}
+                    onClick={() => removeMovie({ Title, Starring })}
+                    style={{ '--color': typesLinks[key].color } as React.CSSProperties}
+                  >
+                    <span>{Title}</span>
+                  </button>
+                ))
+              }
+            </section>
 
-        <section className='menu border-wrapper'>
-          <div className="border"></div>
-          <article className='form-item'>
-            <input
-              type="text"
-              className={value.length > 0 ? 'active' : ''}
-              name=""
-              id="search"
-              value={value}
-              onChange={({ target: { value } }) => setValue(value)}
-            />
-            <label htmlFor='search'>Search a movie</label>
-          </article>
-          {search.length && <h2>Select Movies</h2>}
-          <article className='results'>
-            {search.map(({ Title, Starring }, key) => (
-              <button className='border-wrapper' key={key} onClick={() => addMovie({ Title, Starring })}>
-                <div className="border"></div>
-                <span>{Title}</span>
-              </button>
-            ))}
-          </article>
-        </section>
-        <section className='graph  border-wrapper'>
-          <div className="border"></div>
-          <article>
-          </article>
-          <article ref={wrapperGraph} >
-            <Graph
-              id='graph-id' // id is mandatory, if no id is defined rd3g will throw an error
-              data={graph}
-              config={config}
-              onClickNode={onClickGraph}
-            />
-          </article>
-        </section>
+          }
+        </article>
       </main>
     </>
   )
