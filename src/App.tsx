@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Graph, GraphConfiguration, GraphData, GraphLink, GraphNode, LinkLabelProperty } from 'react-d3-graph';
+import { Graph, GraphConfiguration, GraphData, GraphLink, GraphNode } from 'react-d3-graph';
 
 import movies from './data/index.json';
 import './App.css'
@@ -38,7 +38,6 @@ export const App = () => {
 
   const [search, setSearch] = useState<Movie[]>([] as Movie[]);
   const [value, setValue] = useState('');
-  const [nodeSelected, setNodeSelected] = useState('');
   const [config, setConfig] = useState<Partial<GraphConfiguration<GraphNode, GraphLink>>>({});
   const wrapperGraph = useRef<HTMLElement | null>(null);
 
@@ -83,7 +82,7 @@ export const App = () => {
           if (index === key) {
             return acc;
           }
-          return [...acc, { source: starring, target: pair, label: Title, highlightColor: 'lightblue', ...typesLinks[indexTitle] }];
+          return [...acc, { source: starring, target: pair, highlightColor: 'lightblue', ...typesLinks[indexTitle] }];
         }, [] as Record<string, string>[]);
 
 
@@ -100,38 +99,35 @@ export const App = () => {
     setGraph(graph);
   }, [edges, edges.length]);
 
-  // @ts-ignore
-  const onClickGraph = useCallback((node: string) => {
-    setNodeSelected(node);
-  }, []);
-
 
   useEffect(() => {
     setConfig({
       nodeHighlightBehavior: true,
       height: wrapperGraph?.current?.clientHeight ?? 0,
       width: wrapperGraph?.current?.clientWidth ?? 0,
+      highlightOpacity: 0.2,
+      highlightDegree: 1,
       node: {
-        color: 'lightgreen',
-        size: 200,
-        highlightStrokeColor: 'blue'
+        color: '#A628EB',
+        size: 300,
+        strokeColor: '#A628EB',
+        fontSize: 12,
+        fontWeight: 'bold',
+        highlightColor: '#EB34A9',
+        highlightStrokeColor: '#EB34A9',
+        highlightFontSize: 24,
+        highlightFontWeight: 'lighter',
       },
       link: {
         highlightColor: 'lightblue',
         renderLabel: true,
-        labelProperty: ((node) => {
-          const { source, target } = node;
-          if ([source, target].includes(nodeSelected)) {
-            return (node['label' as keyof GraphLink] ?? '') as string;
-          }
-          return '';
-        }) as LinkLabelProperty<GraphLink>
+        strokeWidth: 2,
       },
       d3: {
         gravity: -1500
       }
     });
-  }, [edges, wrapperGraph.current, nodeSelected]);
+  }, [edges, wrapperGraph.current]);
 
 
 
@@ -184,7 +180,6 @@ export const App = () => {
                 id='graph-id' // id is mandatory, if no id is defined rd3g will throw an error
                 data={graph}
                 config={config}
-                onClickNode={onClickGraph}
               />
             </article>
           </section>
